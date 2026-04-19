@@ -1,16 +1,38 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useEffect, useState } from "react";
+import { useUI } from "@/store";
+import { ChotaMode } from "@/components/ChotaMode";
+import { OwnerMode } from "@/components/OwnerMode";
+import { PinModal } from "@/components/shared/PinModal";
+import { Flash } from "@/components/shared/Flash";
+import { seedIfEmpty } from "@/seed";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const view = useUI((s) => s.currentView);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    document.title = "Kiryana OS — Hisaab Asaan";
+    seedIfEmpty().finally(() => setReady(true));
+  }, []);
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
-    </div>
+    <main className="min-h-dvh flex justify-center bg-background">
+      <div className="w-full max-w-md h-dvh flex flex-col bg-background border-x border-border">
+        <h1 className="sr-only">Kiryana OS — Smart Kiryana &amp; Supplier Assistant</h1>
+        {!ready ? (
+          <div className="flex-1 grid place-items-center text-muted-foreground">
+            Loading…
+          </div>
+        ) : view === "CHOTA_MODE" ? (
+          <ChotaMode />
+        ) : (
+          <OwnerMode />
+        )}
+        <PinModal />
+        <Flash />
+      </div>
+    </main>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;

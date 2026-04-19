@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, daysSince, type Customer } from "@/db";
+import { db, daysSince, oldestUnpaidUdhaarDate, type Customer } from "@/db";
 import { rs } from "@/lib/format";
 import { MessageCircle, AlertTriangle } from "lucide-react";
 
@@ -8,14 +8,6 @@ const sendReminder = (customer: Customer) => {
     `Assalam-o-Alaikum ${customer.name} bhai! Aapka pichla udhaar Rs. ${customer.balance} pending hai. Kirpya jald ada karein. Shukriya!`,
   );
   window.open(`https://wa.me/92${customer.phone}?text=${message}`, "_blank");
-};
-
-const lastUdhaarDate = async (customerId: number) => {
-  const tx = await db.transactions
-    .where("type").equals("udhaar_given")
-    .and((t) => t.related_id === customerId).toArray();
-  if (tx.length === 0) return null;
-  return tx.sort((a, b) => +new Date(b.date) - +new Date(a.date))[0].date;
 };
 
 export const AlertCards = () => {
@@ -45,9 +37,9 @@ export const AlertCards = () => {
 };
 
 const AlertRow = ({ c }: { c: Customer }) => {
-  const lastDate = useLiveQuery(() => lastUdhaarDate(c.id!), [c.id]);
-  const days = lastDate ? daysSince(lastDate) : 0;
-  const overdue = days > c.default_due_days;
+  const oldestDate = useLiveQuery(() => oldestUnpaidUdhaarDate(c.id!), [c.id]);
+  const days = oldestDate ? daysSince(oldestDate) : 0;
+  const overdue = days >= c.default_due_days;
   if (!overdue) return null;
   return (
     <div className="bg-card border-2 border-ink p-4 space-y-3">
@@ -58,18 +50,20 @@ const AlertRow = ({ c }: { c: Customer }) => {
             📞 0{c.phone}
           </div>
           <div className="text-xs num mt-1">
-            <span className="text-udhaar font-bold">{days} din</span> overdue
+            <span className="text-udhaar font-bold">{days} din</span> se baqi (limit {c.default_due_days}d)
           </div>
         </div>
         <div className="num text-xl font-black text-udhaar">{rs(c.balance)}</div>
       </div>
-      <button
-        onClick={() => sendReminder(c)}
-        className="w-full h-12 bg-cash text-cash-foreground border-2 border-ink font-semibold flex items-center justify-center gap-2 active:translate-y-px"
-      >
-        <MessageCircle className="h-4 w-4" />
-        Yaad Dilao (WhatsApp)
-      </button>
+      {c.phone && (
+        <button
+          onClick={() => sendReminder(c)}
+          className="w-full h-12 bg-cash text-cash-foreground border-2 border-ink font-semibold flex items-center justify-center gap-2 active:translate-y-px"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Yaad Dilao (WhatsApp)
+        </button>
+      )}
     </div>
   );
 };

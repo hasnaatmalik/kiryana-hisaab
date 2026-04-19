@@ -2,10 +2,10 @@ import { ItemGrid } from "./ItemGrid";
 import { Cart, CartTotalBar } from "./Cart";
 import { CheckoutBar } from "./CheckoutBar";
 import { useUI } from "@/store";
-import { Lock, Store } from "lucide-react";
+import { ShieldCheck, Store, ChevronsLeftRight } from "lucide-react";
 
 export const ChotaMode = () => {
-  const openPin = useUI((s) => s.openPin);
+  const requestSwitch = useUI((s) => s.requestSwitch);
   return (
     <div className="flex flex-col h-full">
       <header className="flex items-center justify-between px-4 py-3 bg-ink text-background border-b-2 border-ink">
@@ -14,11 +14,12 @@ export const ChotaMode = () => {
           <h1 className="font-bold tracking-wide">Kiryana OS</h1>
         </div>
         <button
-          onClick={openPin}
+          onClick={() => requestSwitch("OWNER_MODE")}
           className="h-10 px-3 flex items-center gap-2 border border-background/40 text-sm font-semibold active:bg-background/10"
         >
-          <Lock className="h-4 w-4" />
-          Owner Mode
+          <ChevronsLeftRight className="h-4 w-4" />
+          <ShieldCheck className="h-4 w-4" />
+          Owner
         </button>
       </header>
 

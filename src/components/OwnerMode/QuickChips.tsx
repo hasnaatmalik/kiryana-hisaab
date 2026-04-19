@@ -1,4 +1,4 @@
-export type ChipKey = "sale" | "udhaar" | "supplier" | "alerts";
+export type ChipKey = "dashboard" | "sale" | "udhaar" | "supplier" | "inventory" | "alerts";
 
 interface Props {
   active: ChipKey;
@@ -6,9 +6,11 @@ interface Props {
 }
 
 const chips: { key: ChipKey; label: string }[] = [
+  { key: "dashboard", label: "Dashboard" },
   { key: "sale", label: "Aaj ki Sale?" },
   { key: "udhaar", label: "Udhaar List" },
-  { key: "supplier", label: "Supplier Hisaab" },
+  { key: "supplier", label: "Supplier" },
+  { key: "inventory", label: "Inventory" },
   { key: "alerts", label: "Koi Masla?" },
 ];
 

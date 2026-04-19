@@ -1,65 +1,86 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, todayISO, daysSince, type Customer } from "@/db";
+import { db, todayISO, daysSince, oldestUnpaidUdhaarDate, type Customer } from "@/db";
 import { rs } from "@/lib/format";
 import { useUI } from "@/store";
-import { X } from "lucide-react";
-
-const lastUdhaarDate = async (customerId: number) => {
-  const tx = await db.transactions
-    .where("type")
-    .equals("udhaar_given")
-    .and((t) => t.related_id === customerId)
-    .toArray();
-  if (tx.length === 0) return null;
-  return tx.sort((a, b) => +new Date(b.date) - +new Date(a.date))[0].date;
-};
+import { X, Plus, Users } from "lucide-react";
+import { AddCustomerModal } from "@/components/shared/AddCustomerModal";
 
 export const UdhaarList = () => {
-  const customers = useLiveQuery(
-    () => db.customers.filter((c) => c.balance > 0).toArray(),
-    [],
-  );
+  const customers = useLiveQuery(() => db.customers.orderBy("name").toArray(), []);
   const [selected, setSelected] = useState<Customer | null>(null);
+  const [adding, setAdding] = useState(false);
 
   if (!customers) return <div className="h-40 bg-muted animate-pulse border border-border" />;
 
+  const withBalance = customers.filter((c) => c.balance > 0);
+  const cleared = customers.filter((c) => c.balance <= 0);
+
   return (
-    <div className="bg-card border-2 border-ink">
-      <div className="px-4 py-3 border-b-2 border-ink flex items-center justify-between">
-        <h3 className="font-bold uppercase tracking-wide">Udhaar List</h3>
-        <span className="num text-sm text-muted-foreground">
-          {customers.length} log
-        </span>
+    <div className="space-y-3">
+      <div className="bg-card border-2 border-ink">
+        <div className="px-4 py-3 border-b-2 border-ink flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            <h3 className="font-bold uppercase tracking-wide">Udhaar List</h3>
+          </div>
+          <span className="num text-sm text-muted-foreground">{withBalance.length} log</span>
+        </div>
+
+        <button
+          onClick={() => setAdding(true)}
+          className="w-full h-14 flex items-center justify-center gap-2 bg-ink text-background border-b-2 border-ink font-semibold active:translate-y-px"
+        >
+          <Plus className="h-5 w-5" />
+          Naya Customer Add Karein
+        </button>
+
+        {withBalance.length === 0 ? (
+          <div className="p-6 text-center text-muted-foreground">Sab clear hai 🎉</div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {withBalance.map((c) => (
+              <CustomerRow key={c.id} c={c} onClick={() => setSelected(c)} />
+            ))}
+          </ul>
+        )}
       </div>
-      {customers.length === 0 ? (
-        <div className="p-6 text-center text-muted-foreground">Sab clear hai 🎉</div>
-      ) : (
-        <ul className="divide-y divide-border">
-          {customers.map((c) => (
-            <CustomerRow key={c.id} c={c} onClick={() => setSelected(c)} />
-          ))}
-        </ul>
+
+      {cleared.length > 0 && (
+        <div className="bg-card border-2 border-ink">
+          <div className="px-4 py-2 border-b-2 border-ink bg-paper text-xs uppercase tracking-wider font-bold text-muted-foreground">
+            Clear customers ({cleared.length})
+          </div>
+          <ul className="divide-y divide-border">
+            {cleared.map((c) => (
+              <li key={c.id} className="px-4 py-3 flex items-center justify-between text-sm">
+                <span className="font-semibold">{c.name}</span>
+                <span className="num text-muted-foreground">0</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
-      {selected && (
-        <RecoverModal customer={selected} onClose={() => setSelected(null)} />
-      )}
+
+      {selected && <RecoverModal customer={selected} onClose={() => setSelected(null)} />}
+      {adding && <AddCustomerModal onClose={() => setAdding(false)} />}
     </div>
   );
 };
 
 const CustomerRow = ({ c, onClick }: { c: Customer; onClick: () => void }) => {
-  const lastDate = useLiveQuery(() => lastUdhaarDate(c.id!), [c.id]);
-  const days = lastDate ? daysSince(lastDate) : 0;
-  const overdue = days > c.default_due_days;
+  const oldestDate = useLiveQuery(() => oldestUnpaidUdhaarDate(c.id!), [c.id]);
+  const days = oldestDate ? daysSince(oldestDate) : 0;
+  const overdue = days >= c.default_due_days;
+
   return (
     <li>
       <button
         onClick={onClick}
-        className="w-full px-4 py-3 flex items-center justify-between active:bg-paper text-left"
+        className={`w-full px-4 py-3 flex items-center justify-between active:bg-paper text-left ${overdue ? "bg-udhaar/5" : ""}`}
       >
         <div className="min-w-0">
-          <div className="font-semibold flex items-center gap-2">
+          <div className="font-semibold flex items-center gap-2 flex-wrap">
             {c.name}
             {overdue && (
               <span className="text-[10px] uppercase font-bold bg-udhaar text-udhaar-foreground px-1.5 py-0.5">
@@ -68,7 +89,8 @@ const CustomerRow = ({ c, onClick }: { c: Customer; onClick: () => void }) => {
             )}
           </div>
           <div className="text-xs text-muted-foreground num">
-            {days} din pehle
+            {oldestDate ? `${days} din se baqi` : "Naya"}
+            {" • "}due {c.default_due_days}d
           </div>
         </div>
         <div className="num text-lg font-bold text-udhaar">{rs(c.balance)}</div>

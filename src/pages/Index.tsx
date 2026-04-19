@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useUI } from "@/store";
 import { ChotaMode } from "@/components/ChotaMode";
 import { OwnerMode } from "@/components/OwnerMode";
-import { PinModal } from "@/components/shared/PinModal";
+import { ModePicker } from "@/components/shared/ModePicker";
+import { SwitchModeDialog } from "@/components/shared/SwitchModeDialog";
 import { Flash } from "@/components/shared/Flash";
 import { seedIfEmpty } from "@/seed";
 
@@ -23,12 +24,14 @@ const Index = () => {
           <div className="flex-1 grid place-items-center text-muted-foreground">
             Loading…
           </div>
+        ) : view === "PICKER" ? (
+          <ModePicker />
         ) : view === "CHOTA_MODE" ? (
           <ChotaMode />
         ) : (
           <OwnerMode />
         )}
-        <PinModal />
+        <SwitchModeDialog />
         <Flash />
       </div>
     </main>

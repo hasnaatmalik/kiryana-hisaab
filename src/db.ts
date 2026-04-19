@@ -23,6 +23,8 @@ export interface Item {
   price: number;
   emoji: string;
   category: string;
+  description?: string;
+  image_url?: string; // base64 data URL or external URL
 }
 
 export type TxType =
@@ -55,6 +57,13 @@ class KiryanaDB extends Dexie {
       items: "++id, name, price, category",
       transactions: "++id, type, amount, related_id, date",
     });
+    // v2: items get description + image_url (no index change needed, just schema bump for future)
+    this.version(2).stores({
+      customers: "++id, name, phone, balance, default_due_days, risk_status",
+      suppliers: "++id, name, payable_balance",
+      items: "++id, name, price, category",
+      transactions: "++id, type, amount, related_id, date",
+    });
   }
 }
 
@@ -73,4 +82,14 @@ export const isToday = (iso: string) => {
 export const daysSince = (iso: string) => {
   const ms = Date.now() - new Date(iso).getTime();
   return Math.floor(ms / (1000 * 60 * 60 * 24));
+};
+
+/** Oldest unpaid udhaar date for a customer (used for risky calc) */
+export const oldestUnpaidUdhaarDate = async (customerId: number): Promise<string | null> => {
+  const tx = await db.transactions
+    .where("related_id").equals(customerId)
+    .and((t) => t.type === "udhaar_given")
+    .toArray();
+  if (tx.length === 0) return null;
+  return tx.sort((a, b) => +new Date(a.date) - +new Date(b.date))[0].date;
 };

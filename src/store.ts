@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type View = "CHOTA_MODE" | "OWNER_MODE";
+export type View = "PICKER" | "CHOTA_MODE" | "OWNER_MODE";
 
 export interface CartLine {
   itemId: number;
@@ -10,31 +10,59 @@ export interface CartLine {
   emoji: string;
 }
 
+const MODE_KEY = "kiryana_mode";
+const initialView = (): View => {
+  if (typeof localStorage === "undefined") return "PICKER";
+  const v = localStorage.getItem(MODE_KEY);
+  if (v === "CHOTA_MODE" || v === "OWNER_MODE") return v;
+  return "PICKER";
+};
+
 interface UIState {
   currentView: View;
   cart: CartLine[];
-  isPinModalOpen: boolean;
-  pinInput: string;
   flash: string | null;
+  pendingSwitchTo: View | null; // for confirm dialog
   setView: (v: View) => void;
+  requestSwitch: (v: View) => void;
+  confirmSwitch: () => void;
+  cancelSwitch: () => void;
+  goToPicker: () => void;
   addToCart: (line: Omit<CartLine, "qty">) => void;
   decFromCart: (itemId: number) => void;
   removeFromCart: (itemId: number) => void;
   clearCart: () => void;
-  openPin: () => void;
-  closePin: () => void;
-  setPin: (p: string) => void;
   showFlash: (msg: string) => void;
   clearFlash: () => void;
 }
 
 export const useUI = create<UIState>((set, get) => ({
-  currentView: "CHOTA_MODE",
+  currentView: initialView(),
   cart: [],
-  isPinModalOpen: false,
-  pinInput: "",
   flash: null,
-  setView: (v) => set({ currentView: v }),
+  pendingSwitchTo: null,
+  setView: (v) => {
+    if (v === "CHOTA_MODE" || v === "OWNER_MODE") {
+      localStorage.setItem(MODE_KEY, v);
+    } else {
+      localStorage.removeItem(MODE_KEY);
+    }
+    set({ currentView: v });
+  },
+  requestSwitch: (v) => set({ pendingSwitchTo: v }),
+  confirmSwitch: () => {
+    const v = get().pendingSwitchTo;
+    if (!v) return;
+    if (v === "CHOTA_MODE" || v === "OWNER_MODE") {
+      localStorage.setItem(MODE_KEY, v);
+    }
+    set({ currentView: v, pendingSwitchTo: null });
+  },
+  cancelSwitch: () => set({ pendingSwitchTo: null }),
+  goToPicker: () => {
+    localStorage.removeItem(MODE_KEY);
+    set({ currentView: "PICKER", pendingSwitchTo: null });
+  },
   addToCart: (line) => {
     const cart = [...get().cart];
     const i = cart.findIndex((c) => c.itemId === line.itemId);
@@ -51,9 +79,6 @@ export const useUI = create<UIState>((set, get) => ({
   removeFromCart: (itemId) =>
     set({ cart: get().cart.filter((c) => c.itemId !== itemId) }),
   clearCart: () => set({ cart: [] }),
-  openPin: () => set({ isPinModalOpen: true, pinInput: "" }),
-  closePin: () => set({ isPinModalOpen: false, pinInput: "" }),
-  setPin: (p) => set({ pinInput: p }),
   showFlash: (msg) => {
     set({ flash: msg });
     setTimeout(() => {

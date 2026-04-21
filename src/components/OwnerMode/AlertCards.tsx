@@ -5,7 +5,7 @@ import { MessageCircle, AlertTriangle } from "lucide-react";
 
 const sendReminder = (customer: Customer) => {
   const message = encodeURIComponent(
-    `Assalam-o-Alaikum ${customer.name} bhai! Aapka pichla udhaar Rs. ${customer.balance} pending hai. Kirpya jald ada karein. Shukriya!`,
+    `Assalam-o-Alaikum ${customer.name} bhai! Aapka pichla udhaar Rs. ${customer.balance} pending hai. Meharbani jald ada karein. Shukriya!`,
   );
   window.open(`https://wa.me/92${customer.phone}?text=${message}`, "_blank");
 };

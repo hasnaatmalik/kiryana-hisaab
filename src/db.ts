@@ -69,6 +69,28 @@ class KiryanaDB extends Dexie {
 
 export const db = new KiryanaDB();
 
+import { syncToCloud, deleteFromCloud } from "./lib/sync";
+
+// Attach background hooks to all tables to automatically sync to Appwrite
+db.tables.forEach((table) => {
+  const tName = table.name;
+  table.hook("creating", function (primKey, obj, transaction) {
+    this.onsuccess = function (newPrimKey) {
+      syncToCloud(tName, newPrimKey as number, obj).catch(console.error);
+    };
+  });
+  table.hook("updating", function (modifications, primKey, obj, transaction) {
+    this.onsuccess = function () {
+      syncToCloud(tName, primKey as number, { ...obj, ...modifications }).catch(console.error);
+    };
+  });
+  table.hook("deleting", function (primKey, obj, transaction) {
+    this.onsuccess = function () {
+      deleteFromCloud(tName, primKey as number).catch(console.error);
+    };
+  });
+});
+
 export const todayISO = () => new Date().toISOString();
 export const isToday = (iso: string) => {
   const d = new Date(iso);

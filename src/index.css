@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Kiryana OS — Ledger Book Aesthetic
+/* Kiryana Hisaab — Ledger Book Aesthetic
    All colors HSL. Off-white paper, black ink, red for debt, emerald for cash.
 */
 
@@ -106,6 +106,12 @@
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
+  }
+  .urdu {
+    font-family: 'Noto Nastaliq Urdu', serif;
+    direction: rtl;
+    line-height: 2;
+    letter-spacing: 0;
   }
   .ledger-card {
     @apply bg-card border border-border;

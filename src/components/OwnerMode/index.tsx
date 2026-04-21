@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useUI } from "@/store";
-import { ShoppingBag, ShieldCheck, ChevronsLeftRight } from "lucide-react";
+import { ShoppingBag, ShieldCheck, ArrowRightLeft } from "lucide-react";
 import { QuickChips, type ChipKey } from "./QuickChips";
 import { SaleCard } from "./SaleCard";
 import { UdhaarList } from "./UdhaarList";
@@ -22,10 +22,10 @@ export const OwnerMode = () => {
         </div>
         <button
           onClick={() => requestSwitch("CHOTA_MODE")}
-          className="h-10 px-3 flex items-center gap-2 border border-background/40 text-sm font-semibold active:bg-background/10"
+          className="h-9 px-4 flex items-center gap-2 rounded-full border border-background/20 bg-background/10 text-sm font-medium hover:bg-background/20 transition-all active:scale-95 shadow-sm"
           aria-label="Chota Mode pe jao"
         >
-          <ChevronsLeftRight className="h-4 w-4" />
+          <ArrowRightLeft className="h-3.5 w-3.5 opacity-70" />
           <ShoppingBag className="h-4 w-4" />
           Chota
         </button>

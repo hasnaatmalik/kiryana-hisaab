@@ -8,7 +8,7 @@ import { AddSupplierModal } from "@/components/shared/AddSupplierModal";
 
 export const SupplierList = () => {
   const suppliers = useLiveQuery(() => db.suppliers.orderBy("name").toArray(), []);
-  const [active, setActive] = useState<{ s: Supplier; mode: "in" | "out" } | null>(null);
+  const [active, setActive] = useState<Supplier | null>(null);
   const [adding, setAdding] = useState(false);
 
   if (!suppliers) return <div className="h-40 bg-muted animate-pulse border border-border" />;
@@ -34,27 +34,16 @@ export const SupplierList = () => {
         ) : (
           <ul className="divide-y divide-border">
             {suppliers.map((s) => (
-              <li key={s.id} className="px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="font-semibold">{s.name}</div>
-                  <div className={`num font-bold ${s.payable_balance > 0 ? "text-udhaar" : "text-muted-foreground"}`}>
+              <li key={s.id}>
+                <button
+                  onClick={() => setActive(s)}
+                  className="w-full px-4 py-3 text-left active:bg-paper flex items-center justify-between"
+                >
+                  <span className="font-semibold">{s.name}</span>
+                  <span className={`num font-bold ${s.payable_balance > 0 ? "text-udhaar" : "text-muted-foreground"}`}>
                     {rs(s.payable_balance)}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setActive({ s, mode: "in" })}
-                    className="h-12 border-2 border-ink bg-paper font-semibold text-sm active:translate-y-px"
-                  >
-                    Maal Aaya
-                  </button>
-                  <button
-                    onClick={() => setActive({ s, mode: "out" })}
-                    className="h-12 border-2 border-ink bg-cash text-cash-foreground font-semibold text-sm active:translate-y-px"
-                  >
-                    Payment Di
-                  </button>
-                </div>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -63,8 +52,7 @@ export const SupplierList = () => {
 
       {active && (
         <SupplierActionModal
-          supplier={active.s}
-          mode={active.mode}
+          supplier={active}
           onClose={() => setActive(null)}
         />
       )}
@@ -74,38 +62,39 @@ export const SupplierList = () => {
 };
 
 const SupplierActionModal = ({
-  supplier, mode, onClose,
-}: { supplier: Supplier; mode: "in" | "out"; onClose: () => void }) => {
+  supplier, onClose,
+}: { supplier: Supplier; onClose: () => void }) => {
   const [amount, setAmount] = useState("");
-  const [naqad, setNaqad] = useState(false); // for "in": pay cash now?
   const showFlash = useUI((s) => s.showFlash);
-  const isIn = mode === "in";
 
-  const submit = async () => {
+  const submit = async (action: "credit" | "naqad" | "payment") => {
     const a = parseFloat(amount);
     if (!a || a <= 0) return;
+
     await db.transaction("rw", db.suppliers, db.transactions, async () => {
-      if (isIn) {
-        if (naqad) {
-          // Goods received and paid immediately — supplier_paid only, no payable change
-          await db.transactions.add({
-            type: "supplier_paid",
-            amount: a,
-            related_id: supplier.id,
-            date: todayISO(),
-            description: `${supplier.name} — naqad maal liya`,
-          });
-        } else {
-          await db.suppliers.update(supplier.id!, { payable_balance: supplier.payable_balance + a });
-          await db.transactions.add({
-            type: "supplier_credit_received",
-            amount: a,
-            related_id: supplier.id,
-            date: todayISO(),
-            description: `${supplier.name} — udhaar maal liya`,
-          });
-        }
+      if (action === "credit") {
+        // Maal aaya, baad mein pay karein — adds to payable
+        await db.suppliers.update(supplier.id!, { payable_balance: supplier.payable_balance + a });
+        await db.transactions.add({
+          type: "supplier_credit_received",
+          amount: a,
+          related_id: supplier.id,
+          date: todayISO(),
+          description: `${supplier.name} — udhaar maal liya`,
+        });
+        showFlash("Maal entry ho gayi! (Udhaar)");
+      } else if (action === "naqad") {
+        // Maal aaya, cash de dia abhi — does NOT add to payable
+        await db.transactions.add({
+          type: "supplier_paid",
+          amount: a,
+          related_id: supplier.id,
+          date: todayISO(),
+          description: `${supplier.name} — naqad maal liya`,
+        });
+        showFlash("Naqad maal entry ho gayi!");
       } else {
+        // Payment of existing dues
         const next = Math.max(0, supplier.payable_balance - a);
         await db.suppliers.update(supplier.id!, { payable_balance: next });
         await db.transactions.add({
@@ -115,9 +104,9 @@ const SupplierActionModal = ({
           date: todayISO(),
           description: `${supplier.name} — payment di`,
         });
+        showFlash("Payment ho gayi!");
       }
     });
-    showFlash(isIn ? "Maal entry ho gayi!" : "Payment ho gayi!");
     onClose();
   };
 
@@ -127,14 +116,15 @@ const SupplierActionModal = ({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-bold text-lg">{supplier.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {isIn ? "Maal aaya — kitne ka?" : "Kitni payment di?"}
+            <p className="text-sm text-muted-foreground num">
+              Baaki dena: <span className="font-bold text-udhaar">{rs(supplier.payable_balance)}</span>
             </p>
           </div>
           <button onClick={onClose} className="h-10 w-10 grid place-items-center border border-border">
             <X className="h-5 w-5" />
           </button>
         </div>
+
         <div className="flex items-center border-2 border-ink bg-paper">
           <span className="px-3 num font-bold">Rs.</span>
           <input
@@ -142,38 +132,34 @@ const SupplierActionModal = ({
             inputMode="numeric"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            placeholder="Amount"
             className="flex-1 h-14 bg-transparent num text-2xl font-bold outline-none pr-3"
             autoFocus
           />
         </div>
 
-        {isIn && (
-          <label className="flex items-center gap-3 border-2 border-ink p-3 bg-paper cursor-pointer">
-            <input
-              type="checkbox"
-              checked={naqad}
-              onChange={(e) => setNaqad(e.target.checked)}
-              className="h-5 w-5 accent-ink"
-            />
-            <div className="flex-1">
-              <div className="font-semibold text-sm">Naqad mein liya</div>
-              <div className="text-xs text-muted-foreground">
-                Cash de diya — payable mein nahi chadega
-              </div>
-            </div>
-          </label>
-        )}
-
-        <button
-          onClick={submit}
-          className={`w-full h-14 border-2 border-ink font-bold text-lg active:translate-y-px ${
-            isIn
-              ? naqad ? "bg-cash text-cash-foreground" : "bg-udhaar text-udhaar-foreground"
-              : "bg-cash text-cash-foreground"
-          }`}
-        >
-          {isIn ? (naqad ? "Naqad Save Karo" : "Udhaar Save Karo") : "Payment Save Karo"}
-        </button>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => submit("credit")}
+              className="h-14 bg-udhaar text-udhaar-foreground border-2 border-ink font-bold text-sm active:translate-y-px leading-tight px-2"
+            >
+              Maal Aaya<br/><span className="font-normal text-xs opacity-80">(Udhaar — baad mein denge)</span>
+            </button>
+            <button
+              onClick={() => submit("naqad")}
+              className="h-14 bg-paper border-2 border-ink font-bold text-sm active:translate-y-px leading-tight px-2"
+            >
+              Naqad Maal Liya<br/><span className="font-normal text-xs text-muted-foreground">(Cash abhi de dia)</span>
+            </button>
+          </div>
+          <button
+            onClick={() => submit("payment")}
+            className="w-full h-12 bg-cash text-cash-foreground border-2 border-ink font-bold text-base active:translate-y-px"
+          >
+            Purana Udhaar Diya
+          </button>
+        </div>
       </div>
     </div>
   );

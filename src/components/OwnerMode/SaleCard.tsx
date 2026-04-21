@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, isToday } from "@/db";
+import { db, isToday, todayISO } from "@/db";
 import { rs } from "@/lib/format";
-import { Calendar } from "lucide-react";
+import { Calendar, RotateCcw, Plus, X } from "lucide-react";
+import { useUI } from "@/store";
 
 export const SaleCard = () => {
   const tx = useLiveQuery(() => db.transactions.toArray(), []);
   const [galla, setGalla] = useState<string>("");
+  const [showManualCash, setShowManualCash] = useState(false);
 
   if (!tx) {
     return <div className="h-40 bg-muted animate-pulse border border-border" />;
@@ -19,17 +21,38 @@ export const SaleCard = () => {
   const supplierPaid = today.filter((t) => t.type === "supplier_paid").reduce((s, t) => s + t.amount, 0);
   const supplierCredit = today.filter((t) => t.type === "supplier_credit_received").reduce((s, t) => s + t.amount, 0);
 
-  // Total sales today (all goods that left the shop)
   const totalSales = cashSales + udhaarGiven;
   const expected = cashSales + udhaarRec - supplierPaid;
   const actual = parseFloat(galla) || 0;
   const diff = actual - expected;
 
+  const handleResetSale = async () => {
+    if (window.confirm("⚠️ WARNING: Kiya aap wakayi aaj ki saari sale (cash + udhaar) delete karna chahte hain? Yeh waapis nahi aayegi.")) {
+      const todayIds = today.map(t => t.id).filter((id): id is number => id !== undefined);
+      if (todayIds.length > 0) {
+        await db.transactions.bulkDelete(todayIds);
+        setGalla("");
+      }
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="bg-card border-2 border-ink p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-base uppercase tracking-wide">Aaj ki Sale</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-base uppercase tracking-wide">Aaj ki Sale</h3>
+            {today.length > 0 && (
+              <button 
+                onClick={handleResetSale}
+                className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors"
+                title="Reset Aaj ki Sale"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
           <span className="text-xs text-muted-foreground num flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             {new Date().toLocaleDateString("en-PK")}
@@ -58,6 +81,16 @@ export const SaleCard = () => {
             Aaj udhaar pe maal liya: <span className="font-bold text-udhaar">{rs(supplierCredit)}</span>
           </div>
         )}
+        
+        <div className="pt-2 border-t border-border">
+          <button 
+            onClick={() => setShowManualCash(true)}
+            className="w-full h-12 flex items-center justify-center gap-2 border-2 border-ink bg-paper font-bold text-sm active:translate-y-px"
+          >
+            <Plus className="h-4 w-4" />
+            Manual Cash Entry
+          </button>
+        </div>
       </div>
 
       {/* Reconciliation */}
@@ -99,6 +132,62 @@ export const SaleCard = () => {
                 : `Rs. ${Math.abs(diff).toLocaleString("en-PK")} kam hai`}
           </div>
         )}
+      </div>
+      
+      {showManualCash && <ManualCashModal onClose={() => setShowManualCash(false)} />}
+    </div>
+  );
+};
+
+const ManualCashModal = ({ onClose }: { onClose: () => void }) => {
+  const [amount, setAmount] = useState("");
+  const showFlash = useUI((s) => s.showFlash);
+
+  const submit = async () => {
+    const a = parseFloat(amount);
+    if (!a || a <= 0) return;
+    await db.transactions.add({
+      type: "cash_sale",
+      amount: a,
+      date: todayISO(),
+      description: "Manual Cash Entry",
+    });
+    showFlash("Cash entry save ho gayi!");
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-ink/40 flex items-end sm:items-center justify-center">
+      <div className="bg-background w-full sm:max-w-sm border-t-2 sm:border-2 border-ink p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-lg">Manual Cash Entry</h2>
+            <p className="text-sm text-muted-foreground">Bina items ke cash entry karen</p>
+          </div>
+          <button onClick={onClose} className="h-10 w-10 grid place-items-center border border-border">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        
+        <div className="flex items-center border-2 border-ink bg-paper">
+          <span className="px-3 num font-bold">Rs.</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="Amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="flex-1 h-14 bg-transparent num text-2xl font-bold outline-none pr-3"
+            autoFocus
+          />
+        </div>
+        
+        <button
+          onClick={submit}
+          className="w-full h-14 bg-cash text-cash-foreground border-2 border-ink font-bold text-lg active:translate-y-px"
+        >
+          Save Cash
+        </button>
       </div>
     </div>
   );

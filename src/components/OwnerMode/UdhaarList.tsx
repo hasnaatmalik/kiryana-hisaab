@@ -8,7 +8,7 @@ import { AddCustomerModal } from "@/components/shared/AddCustomerModal";
 
 export const UdhaarList = () => {
   const customers = useLiveQuery(() => db.customers.orderBy("name").toArray(), []);
-  const [selected, setSelected] = useState<Customer | null>(null);
+  const [active, setActive] = useState<Customer | null>(null);
   const [adding, setAdding] = useState(false);
 
   if (!customers) return <div className="h-40 bg-muted animate-pulse border border-border" />;
@@ -40,7 +40,7 @@ export const UdhaarList = () => {
         ) : (
           <ul className="divide-y divide-border">
             {withBalance.map((c) => (
-              <CustomerRow key={c.id} c={c} onClick={() => setSelected(c)} />
+              <CustomerRow key={c.id} c={c} onClick={() => setActive(c)} />
             ))}
           </ul>
         )}
@@ -62,7 +62,7 @@ export const UdhaarList = () => {
         </div>
       )}
 
-      {selected && <RecoverModal customer={selected} onClose={() => setSelected(null)} />}
+      {active && <UdhaarActionModal customer={active} onClose={() => setActive(null)} />}
       {adding && <AddCustomerModal onClose={() => setAdding(false)} />}
     </div>
   );
@@ -99,25 +99,38 @@ const CustomerRow = ({ c, onClick }: { c: Customer; onClick: () => void }) => {
   );
 };
 
-const RecoverModal = ({ customer, onClose }: { customer: Customer; onClose: () => void }) => {
+const UdhaarActionModal = ({ customer, onClose }: { customer: Customer; onClose: () => void }) => {
   const [amount, setAmount] = useState("");
   const showFlash = useUI((s) => s.showFlash);
 
-  const submit = async () => {
+  const submit = async (action: "give" | "recover") => {
     const a = parseFloat(amount);
     if (!a || a <= 0) return;
-    const wasool = Math.min(a, customer.balance);
+    
     await db.transaction("rw", db.customers, db.transactions, async () => {
-      await db.customers.update(customer.id!, { balance: customer.balance - wasool });
-      await db.transactions.add({
-        type: "udhaar_recovered",
-        amount: wasool,
-        related_id: customer.id,
-        date: todayISO(),
-        description: `${customer.name} se wasool`,
-      });
+      if (action === "recover") {
+        const wasool = Math.min(a, customer.balance);
+        await db.customers.update(customer.id!, { balance: customer.balance - wasool });
+        await db.transactions.add({
+          type: "udhaar_recovered",
+          amount: wasool,
+          related_id: customer.id,
+          date: todayISO(),
+          description: `${customer.name} se wasool`,
+        });
+        showFlash("Wasool ho gaya!");
+      } else {
+        await db.customers.update(customer.id!, { balance: customer.balance + a });
+        await db.transactions.add({
+          type: "udhaar_given",
+          amount: a,
+          related_id: customer.id,
+          date: todayISO(),
+          description: `${customer.name} ko udhaar diya`,
+        });
+        showFlash("Udhaar entry ho gayi!");
+      }
     });
-    showFlash("Wasool ho gaya!");
     onClose();
   };
 
@@ -147,12 +160,20 @@ const RecoverModal = ({ customer, onClose }: { customer: Customer; onClose: () =
             autoFocus
           />
         </div>
-        <button
-          onClick={submit}
-          className="w-full h-14 bg-cash text-cash-foreground border-2 border-ink font-bold text-lg active:translate-y-px"
-        >
-          Wasool Karo
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => submit("give")}
+            className="w-full h-14 bg-udhaar text-udhaar-foreground border-2 border-ink font-bold text-base active:translate-y-px"
+          >
+            Udhaar Diya
+          </button>
+          <button
+            onClick={() => submit("recover")}
+            className="w-full h-14 bg-cash text-cash-foreground border-2 border-ink font-bold text-base active:translate-y-px"
+          >
+            Wasool Karo
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { ModePicker } from "@/components/shared/ModePicker";
 import { SwitchModeDialog } from "@/components/shared/SwitchModeDialog";
 import { Flash } from "@/components/shared/Flash";
 import { seedIfEmpty } from "@/seed";
-import { pullInventoryFromCloud } from "@/lib/sync";
+import { pullAllFromCloud } from "@/lib/sync";
 
 const Index = () => {
   const view = useUI((s) => s.currentView);
@@ -15,8 +15,8 @@ const Index = () => {
   useEffect(() => {
     document.title = "Kiryana Hisaab";
     seedIfEmpty().then(() => {
-      // Background pull from cloud to keep inventory images in sync across devices
-      pullInventoryFromCloud().finally(() => setReady(true));
+      // Background pull from cloud to keep all data in sync across devices
+      pullAllFromCloud().finally(() => setReady(true));
     });
   }, []);
 

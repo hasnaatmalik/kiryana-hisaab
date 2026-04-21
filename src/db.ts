@@ -88,6 +88,18 @@ class KiryanaDB extends Dexie {
       await tx.table("items").clear();
       await tx.table("transactions").clear();
     });
+    // v5: reseed with real product images from public/items/ + updated customers & transactions
+    this.version(5).stores({
+      customers: "++id, name, phone, balance, default_due_days, risk_status",
+      suppliers: "++id, name, payable_balance",
+      items: "++id, name, price, category",
+      transactions: "++id, type, amount, related_id, date",
+    }).upgrade(async (tx) => {
+      await tx.table("customers").clear();
+      await tx.table("suppliers").clear();
+      await tx.table("items").clear();
+      await tx.table("transactions").clear();
+    });
   }
 }
 

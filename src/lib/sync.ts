@@ -1,4 +1,5 @@
 import { databases, DB_ID } from "./appwrite";
+import { Query } from "appwrite";
 
 const collections: Record<string, string> = {
   customers: import.meta.env.VITE_APPWRITE_CUSTOMERS_COLLECTION || "customers",
@@ -81,7 +82,7 @@ export const pullAllFromCloud = async () => {
       
       // --- 1. SYNC ITEMS ---
       if (collections.items) {
-        const itemRes = await databases.listDocuments(DB_ID, collections.items, []);
+        const itemRes = await databases.listDocuments(DB_ID, collections.items, [Query.limit(500)]);
         if (itemRes.documents) {
           const docs = [...itemRes.documents].sort((a, b) => {
              if (a.image_url && !b.image_url) return -1;
@@ -125,7 +126,7 @@ export const pullAllFromCloud = async () => {
 
       // --- 2. SYNC CUSTOMERS ---
       if (collections.customers) {
-        const custRes = await databases.listDocuments(DB_ID, collections.customers, []);
+        const custRes = await databases.listDocuments(DB_ID, collections.customers, [Query.limit(500)]);
         if (custRes.documents) {
           const docs = [...custRes.documents].sort((a, b) => parseInt(b.$id) - parseInt(a.$id));
           const seenPhones = new Set<string>();
@@ -165,7 +166,7 @@ export const pullAllFromCloud = async () => {
 
       // --- 3. SYNC SUPPLIERS ---
       if (collections.suppliers) {
-        const supRes = await databases.listDocuments(DB_ID, collections.suppliers, []);
+        const supRes = await databases.listDocuments(DB_ID, collections.suppliers, [Query.limit(500)]);
         if (supRes.documents) {
           const docs = [...supRes.documents].sort((a, b) => parseInt(b.$id) - parseInt(a.$id));
           const seenNames = new Set<string>();
@@ -199,7 +200,7 @@ export const pullAllFromCloud = async () => {
 
       // --- 4. SYNC TRANSACTIONS ---
       if (collections.transactions) {
-        const txRes = await databases.listDocuments(DB_ID, collections.transactions, []);
+        const txRes = await databases.listDocuments(DB_ID, collections.transactions, [Query.limit(500)]);
         if (txRes.documents) {
           const docs = [...txRes.documents];
           const seenHashes = new Set<string>();

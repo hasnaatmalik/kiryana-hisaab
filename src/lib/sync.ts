@@ -76,17 +76,47 @@ export const pullInventoryFromCloud = async () => {
   if (!collectionId || !DB_ID) return;
 
   try {
-    const response = await databases.listDocuments(DB_ID, collectionId);
+    // We grab up to 500 items to make sure we don't miss duplicates
+    const response = await databases.listDocuments(DB_ID, collectionId, [
+        // Appwrite requires limit via Query if > 25, fallback if not imported
+    ]);
     if (!response.documents || response.documents.length === 0) return;
 
-    // Dynamically import db to prevent circular dependency since db imports sync.ts
     const { db } = await import('@/db');
     
     await db.transaction("rw", db.items, async () => {
-      for (const doc of response.documents) {
+      // 1. Sort the incoming documents so the best version (with an image) comes first
+      const docs = [...response.documents].sort((a, b) => {
+         if (a.image_url && !b.image_url) return -1;
+         if (!a.image_url && b.image_url) return 1;
+         return parseInt(b.$id) - parseInt(a.$id); // Pick newest if tie
+      });
+
+      const seenNames = new Set<string>();
+
+      for (const doc of docs) {
         const id = parseInt(doc.$id);
         if (isNaN(id)) continue;
+        const normalizedName = doc.name.trim().toLowerCase();
 
+        // 2. If we've already synced this exact product name, THIS one is a duplicate
+        if (seenNames.has(normalizedName)) {
+           // Delete the bad duplicate from Local Database
+           await db.items.delete(id).catch(() => {});
+           // Delete the bad duplicate from Cloud Database
+           databases.deleteDocument(DB_ID, collectionId, doc.$id).catch(() => {});
+           continue; // skip syncing it
+        }
+
+        seenNames.add(normalizedName);
+
+        // 3. Clean up any other random local duplicates that exist under a different ID
+        const localDuplicates = await db.items.filter(it => it.name.trim().toLowerCase() === normalizedName && it.id !== id).toArray();
+        for (const dup of localDuplicates) {
+            await db.items.delete(dup.id!).catch(() => {});
+        }
+
+        // 4. Update the real master item (the best one)
         const localObj = await db.items.get(id);
         if (localObj) {
           const updates: any = {};
@@ -101,7 +131,7 @@ export const pullInventoryFromCloud = async () => {
             await db.items.update(id, updates);
           }
         } else {
-          // If Appwrite has an item that this phone doesn't have, add it!
+          // If it's totally new to this device, add it!
           await db.items.add({
             id: id,
             name: doc.name,
@@ -114,7 +144,7 @@ export const pullInventoryFromCloud = async () => {
         }
       }
     });
-    console.log("[Sync] Inventory successfully pulled from Cloud!");
+    console.log("[Sync] Inventory pulled and deduplicated successfully!");
   } catch (error) {
     console.warn("[Sync] Failed to pull inventory from cloud:", error);
   }

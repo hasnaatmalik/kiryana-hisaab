@@ -66,3 +66,56 @@ export const deleteFromCloud = async (tableName: string, dexieId: number) => {
     }
   }
 };
+
+/**
+ * Downloads inventory from Appwrite and updates the local IndexedDB.
+ * This runs when the app boots up so all devices receive the latest pictures & prices.
+ */
+export const pullInventoryFromCloud = async () => {
+  const collectionId = collections.items;
+  if (!collectionId || !DB_ID) return;
+
+  try {
+    const response = await databases.listDocuments(DB_ID, collectionId);
+    if (!response.documents || response.documents.length === 0) return;
+
+    // Dynamically import db to prevent circular dependency since db imports sync.ts
+    const { db } = await import('@/db');
+    
+    await db.transaction("rw", db.items, async () => {
+      for (const doc of response.documents) {
+        const id = parseInt(doc.$id);
+        if (isNaN(id)) continue;
+
+        const localObj = await db.items.get(id);
+        if (localObj) {
+          const updates: any = {};
+          let changed = false;
+          
+          if (doc.image_url !== localObj.image_url) { updates.image_url = doc.image_url; changed = true; }
+          if (doc.price !== localObj.price) { updates.price = doc.price; changed = true; }
+          if (doc.name !== localObj.name) { updates.name = doc.name; changed = true; }
+          if (doc.description !== localObj.description) { updates.description = doc.description; changed = true; }
+
+          if (changed) {
+            await db.items.update(id, updates);
+          }
+        } else {
+          // If Appwrite has an item that this phone doesn't have, add it!
+          await db.items.add({
+            id: id,
+            name: doc.name,
+            price: doc.price,
+            emoji: doc.emoji || "📦",
+            category: doc.category || "grocery",
+            description: doc.description,
+            image_url: doc.image_url
+          });
+        }
+      }
+    });
+    console.log("[Sync] Inventory successfully pulled from Cloud!");
+  } catch (error) {
+    console.warn("[Sync] Failed to pull inventory from cloud:", error);
+  }
+};

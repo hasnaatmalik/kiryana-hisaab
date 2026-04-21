@@ -1,34 +1,22 @@
 import { useState, useRef } from "react";
 import { db, type Item } from "@/db";
 import { useUI } from "@/store";
-import { X, ImagePlus } from "lucide-react";
+import { X, ImagePlus, Loader2 } from "lucide-react";
+import { storage, BUCKET_ID, ENDPOINT, PROJECT_ID } from "@/lib/appwrite";
+import { ID } from "appwrite";
 
 interface Props {
   initial?: Item | null;
   onClose: () => void;
 }
 
-const compressImage = (file: File, maxSize = 320): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.78));
-      };
-      img.onerror = reject;
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+/** Upload image to Appwrite Storage and return its public view URL */
+const uploadToAppwrite = async (file: File): Promise<string> => {
+  const fileId = ID.unique();
+  await storage.createFile(BUCKET_ID, fileId, file);
+  // Build the public view URL
+  return `${ENDPOINT}/storage/buckets/${BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`;
+};
 
 export const AddItemModal = ({ initial, onClose }: Props) => {
   const [name, setName] = useState(initial?.name ?? "");
@@ -43,8 +31,11 @@ export const AddItemModal = ({ initial, onClose }: Props) => {
   const handleFile = async (f: File) => {
     setBusy(true);
     try {
-      const data = await compressImage(f);
-      setImageUrl(data);
+      const url = await uploadToAppwrite(f);
+      setImageUrl(url);
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      alert("Image upload failed. Check Appwrite Storage permissions.");
     } finally {
       setBusy(false);
     }
@@ -95,7 +86,11 @@ export const AddItemModal = ({ initial, onClose }: Props) => {
                 <span className="text-[10px] mt-1">Photo</span>
               </div>
             )}
-            {busy && <div className="absolute inset-0 grid place-items-center bg-background/60 text-xs">…</div>}
+            {busy && (
+              <div className="absolute inset-0 grid place-items-center bg-background/80">
+                <Loader2 className="h-6 w-6 animate-spin text-ink" />
+              </div>
+            )}
           </button>
           <input
             ref={fileRef}

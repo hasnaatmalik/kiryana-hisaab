@@ -57,12 +57,24 @@ class KiryanaDB extends Dexie {
       items: "++id, name, price, category",
       transactions: "++id, type, amount, related_id, date",
     });
-    // v2: items get description + image_url (no index change needed, just schema bump for future)
+    // v2: items get description + image_url
     this.version(2).stores({
       customers: "++id, name, phone, balance, default_due_days, risk_status",
       suppliers: "++id, name, payable_balance",
       items: "++id, name, price, category",
       transactions: "++id, type, amount, related_id, date",
+    });
+    // v3: full inventory reseed (29 items with images). Clears all tables to force fresh seed.
+    this.version(3).stores({
+      customers: "++id, name, phone, balance, default_due_days, risk_status",
+      suppliers: "++id, name, payable_balance",
+      items: "++id, name, price, category",
+      transactions: "++id, type, amount, related_id, date",
+    }).upgrade(async (tx) => {
+      await tx.table("customers").clear();
+      await tx.table("suppliers").clear();
+      await tx.table("items").clear();
+      await tx.table("transactions").clear();
     });
   }
 }

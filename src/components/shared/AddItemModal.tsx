@@ -18,6 +18,26 @@ const uploadToAppwrite = async (file: File): Promise<string> => {
   return `${ENDPOINT}/storage/buckets/${BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`;
 };
 
+const compressImage = (file: File, maxSize = 800): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
 export const AddItemModal = ({ initial, onClose }: Props) => {
   const [name, setName] = useState(initial?.name ?? "");
   const [price, setPrice] = useState(String(initial?.price ?? ""));
@@ -25,17 +45,28 @@ export const AddItemModal = ({ initial, onClose }: Props) => {
   const [description, setDescription] = useState(initial?.description ?? "");
   const [imageUrl, setImageUrl] = useState<string | undefined>(initial?.image_url);
   const [busy, setBusy] = useState(false);
+  const [uploadNote, setUploadNote] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
   const showFlash = useUI((s) => s.showFlash);
 
   const handleFile = async (f: File) => {
     setBusy(true);
+    setUploadNote("Uploading…");
     try {
       const url = await uploadToAppwrite(f);
       setImageUrl(url);
-    } catch (err) {
-      console.error("Image upload failed:", err);
-      alert("Image upload failed. Check Appwrite Storage permissions.");
+      setUploadNote("✓ Cloud pe save ho gayi");
+    } catch (err: any) {
+      // Log real error to console for debugging
+      console.error("[Appwrite Upload Error]", err?.message || err);
+      // Fallback: save compressed base64 locally
+      try {
+        const base64 = await compressImage(f);
+        setImageUrl(base64);
+        setUploadNote("⚠ Locally saved (cloud failed)");
+      } catch {
+        setUploadNote("✗ Upload fail ho gaya");
+      }
     } finally {
       setBusy(false);
     }
@@ -107,6 +138,11 @@ export const AddItemModal = ({ initial, onClose }: Props) => {
               maxLength={2}
               className="w-full h-12 bg-paper border-2 border-ink px-3 outline-none text-2xl text-center"
             />
+            {uploadNote && (
+              <p className={`text-xs font-semibold ${uploadNote.startsWith("✓") ? "text-cash" : uploadNote.startsWith("⚠") ? "text-amber-600" : "text-udhaar"}`}>
+                {uploadNote}
+              </p>
+            )}
             {imageUrl && (
               <button
                 type="button"
